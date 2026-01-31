@@ -4,6 +4,7 @@ import (
 	"blog-api/config"
 	"blog-api/handlers"
 	"blog-api/storage"
+    "blog-api/middleware"
 	"context"
 	"encoding/json"
 	"log"
@@ -76,6 +77,9 @@ func main() {
 			"database":  "connected",
 		})
 	}).Methods("GET")
+
+    // Apply rate limiting to API endpoints
+    api.Use(middleware.RateLimit)
 
 	// Middleware
 	r.Use(loggingMiddleware)
