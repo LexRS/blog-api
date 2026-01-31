@@ -18,15 +18,86 @@ func NewPostStoreHandler(store storage.PostStore) *PostHandler {
 	return &PostHandler{store: store}
 }
 
-func (h *PostHandler) GetAllPosts(w http.ResponseWriter, r *http.Request) {
-	posts, err := h.store.GetAll()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+func (h *PostHandler) GetPostsPaginated(w http.ResponseWriter, r *http.Request) {
+	// Parse query parameters
+	query := models.DefaultPostQuery()
+
+	// Get cursor from query parameters
+	if cursor := r.URL.Query().Get("cursor"); cursor != "" {
+		query.Cursor = cursor
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(posts)
+	// Get limit
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil {
+			query.Limit = limit
+		}
+	}
+
+	// Get sort parameters
+    if sortBy := r.URL.Query().Get("sort_by"); sortBy != "" {
+        query.SortBy = sortBy
+    }
+    
+    if sortDir := r.URL.Query().Get("sort_dir"); sortDir != "" {
+        query.SortDir = sortDir
+    }
+    
+    // Get filters
+    if author := r.URL.Query().Get("author"); author != "" {
+        query.Author = author
+    }
+    
+    if search := r.URL.Query().Get("search"); search != "" {
+        query.Search = search
+    }
+
+	// Validate query
+    if err := query.Validate(); err != nil {
+        http.Error(w, err.Error(), http.StatusBadRequest)
+        return
+    }
+
+	// Get paginated posts
+	paginatedPosts, err := h.store.(interface {
+		GetPostsPaginated(query models.PostQuery) (*models.PaginatedPosts, error)
+	}).GetPostsPaginated(query)
+
+	if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(paginatedPosts)
+}
+
+// Update GetAllPosts to use pagination (backward compatibility)
+func (h *PostHandler) GetAllPosts(w http.ResponseWriter, r *http.Request) {
+    // Check if using new pagination query params
+    if r.URL.Query().Get("cursor") != "" || 
+       r.URL.Query().Get("limit") != "" ||
+       r.URL.Query().Get("page") != "" {
+        
+        // Redirect to paginated endpoint
+        h.GetPostsPaginated(w, r)
+        return
+    }
+    
+    // Old behavior: get all posts (limit to 100 for safety)
+    posts, err := h.store.GetAll()
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+	// Limit to 100 posts for backward compatibility
+    if len(posts) > 100 {
+        posts = posts[:100]
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(posts)
 }
 
 func (h *PostHandler) GetPost(w http.ResponseWriter, r *http.Request) {
