@@ -51,6 +51,7 @@ func main() {
 
 	// Posts endpoints
 	api.HandleFunc("/posts", postHandler.GetAllPosts).Methods("GET")
+    api.HandleFunc("/posts/paginated", postHandler.GetPostsPaginated).Methods("GET")
 	api.HandleFunc("/posts", postHandler.CreatePost).Methods("POST")
 	api.HandleFunc("/posts/{id}", postHandler.GetPost).Methods("GET")
 	api.HandleFunc("/posts/{id}", postHandler.UpdatePost).Methods("PUT")
