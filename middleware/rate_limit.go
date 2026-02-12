@@ -23,23 +23,14 @@ func NewIPRateLimiter(r rate.Limit, b int) *IPRateLimiter {
     }
 }
 
-func (i *IPRateLimiter) AddIP(ip string) *rate.Limiter {
-    i.mu.Lock()
-    defer i.mu.Unlock()
-    
-    limiter := rate.NewLimiter(i.r, i.b)
-    i.ips[ip] = limiter
-    
-    return limiter
-}
-
 func (i *IPRateLimiter) GetLimiter(ip string) *rate.Limiter {
     i.mu.Lock()
     defer i.mu.Unlock()
     
     limiter, exists := i.ips[ip]
     if !exists {
-        return i.AddIP(ip)
+        limiter = rate.NewLimiter(i.r, i.b)
+        i.ips[ip] = limiter
     }
     
     return limiter
