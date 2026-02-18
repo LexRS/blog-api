@@ -15,7 +15,7 @@ type PostgresStore struct {
 	db *sql.DB
 }
 
-func (s *PostgresStore) getPaginatedPosts(query models.PostQuery) (*models.PaginatedPosts, error) {
+func (s *PostgresStore) GetPostsPaginated(query models.PostQuery) (*models.PaginatedPosts, error) {
 	// Validate query
 	if err := query.Validate(); err != nil {
 		return nil, err
