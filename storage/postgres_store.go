@@ -16,21 +16,8 @@ type PostgresStore struct {
 }
 
 func (s *PostgresStore) GetPostsPaginated(query models.PostQuery) (*models.PaginatedPosts, error) {
-	// Validate query
-	if err := query.Validate(); err != nil {
-		return nil, err
-	}
-
 	whereClause, args := s.buildWhereClause(query)
-
 	orderClause := s.buildOrderClause(query)
-
-	// Get total count (optional, can be expensive)
-	// total, err := s.getTotalPosts(whereClause, args)
-	// if err != nil {
-	//     log.Printf("Warning: Could not get total count: %v", err)
-	//     total = -1 // Indicate unknown
-	// }
 
 	// Build main query with cursor
 	mainQuery, args := s.buildPaginatedQuery(query, whereClause, orderClause, args)
@@ -86,33 +73,19 @@ func (s *PostgresStore) buildWhereClause(query models.PostQuery) (string, []inte
 	if query.Cursor != "" {
 		cursor, err := models.DecodeCursor(query.Cursor)
 		if err == nil {
-			operator := "<"
-			if query.SortDir == "asc" {
-				operator = ">"
-			}
-
-			if query.SortBy == "created_at" {
-				conditions = append(conditions,
-					fmt.Sprintf("(created_at, id) %s ($%d, $%d)",
-						operator, argIndex, argIndex+1))
-				args = append(args, cursor.CreatedAt, cursor.ID)
-				argIndex += 2
-			} else if query.SortBy == "id" {
-				conditions = append(conditions,
-					fmt.Sprintf("id %s $%d", operator, argIndex))
-				args = append(args, cursor.ID)
-				argIndex++
-			}
+			conditions = append(conditions, fmt.Sprintf("(created_at, id) < ($%d, $%d)", argIndex, argIndex+1))
+			args = append(args, cursor.CreatedAt, cursor.ID)
+			argIndex += 2
 		}
 	}
 
-	// Filter by author
+	//Filter by author
 	if query.Author != "" {
 		conditions = append(conditions, fmt.Sprintf("author = $%d", argIndex))
 		args = append(args, query.Author)
 		argIndex++
 	}
-	// Search
+	//Search
 	if query.Search != "" {
 		conditions = append(conditions,
 			fmt.Sprintf("(title ILIKE $%d OR content ILIKE $%d)",
@@ -129,23 +102,8 @@ func (s *PostgresStore) buildWhereClause(query models.PostQuery) (string, []inte
 }
 
 func (s *PostgresStore) buildOrderClause(query models.PostQuery) string {
-	if query.SortBy == "created_at" {
-		return fmt.Sprintf("ORDER BY created_at %s, id %s", strings.ToUpper(query.SortDir), strings.ToUpper(query.SortDir))
-	}
-
-	return fmt.Sprintf("ORDER BY %s %s", query.SortBy, strings.ToUpper(query.SortDir))
+	return "ORDER BY created_at DESC, id DESC"
 }
-
-// func (s *PostgresStore) getTotalPosts(whereClause string, args []interface{}) (int, error) {
-//     query := fmt.Sprintf("SELECT COUNT(*) FROM posts %s", whereClause)
-
-//     var total int
-//     err := s.db.QueryRow(query, args...).Scan(&total)
-//     if err != nil {
-//         return 0, err
-//     }
-//     return total, nil
-// }
 
 func (s *PostgresStore) buildPaginatedQuery(
 	query models.PostQuery,
@@ -191,6 +149,10 @@ func (s *PostgresStore) scanPaginatedPosts(
 		posts = append(posts, post)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, "", err
+	}
+
 	// Check if we have extra row for "has more"
 	if len(posts) > query.Limit {
 		posts = posts[:query.Limit] // Remove the extra
@@ -227,19 +189,18 @@ func (s *PostgresStore) Init() error {
 
 func (s *PostgresStore) createPostsTable() error {
 	query := `
-    CREATE TABLE IF NOT EXISTS posts (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        content TEXT NOT NULL,
-        author VARCHAR(100) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at);
-    CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author);
-    `
+	CREATE TABLE IF NOT EXISTS posts (
+		id SERIAL PRIMARY KEY,
+		title VARCHAR(255) NOT NULL,
+		content TEXT NOT NULL,
+		author VARCHAR(100) NOT NULL,
+		created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+	);
 
+	CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at);
+	CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author);
+	`
 	_, err := s.db.Exec(query)
 	return err
 }

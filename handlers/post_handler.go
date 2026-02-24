@@ -19,57 +19,55 @@ func NewPostStoreHandler(store storage.PostStore) *PostHandler {
 }
 
 func (h *PostHandler) GetPostsPaginated(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters
+	qp := r.URL.Query()
+
 	query := models.DefaultPostQuery()
 
-	// Get cursor from query parameters
-	if cursor := r.URL.Query().Get("cursor"); cursor != "" {
+	if cursor := qp.Get("cursor"); cursor != "" {
 		query.Cursor = cursor
 	}
 
-	// Get limit
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if limit, err := strconv.Atoi(limitStr); err == nil {
-			query.Limit = limit
+	if limitStr := qp.Get("limit"); limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil {
+			http.Error(w, "invalid limit parameter", http.StatusBadRequest)
+			return
 		}
+		query.Limit = limit
 	}
 
-	// Get sort parameters
-	if sortBy := r.URL.Query().Get("sort_by"); sortBy != "" {
+	if sortBy := qp.Get("sort_by"); sortBy != "" {
 		query.SortBy = sortBy
 	}
 
-	if sortDir := r.URL.Query().Get("sort_dir"); sortDir != "" {
+	if sortDir := qp.Get("sort_dir"); sortDir != "" {
 		query.SortDir = sortDir
 	}
 
-	// Get filters
-	if author := r.URL.Query().Get("author"); author != "" {
+	if author := qp.Get("author"); author != "" {
 		query.Author = author
 	}
 
-	if search := r.URL.Query().Get("search"); search != "" {
+	if search := qp.Get("search"); search != "" {
 		query.Search = search
 	}
 
-	// Validate query
 	if err := query.Validate(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Get paginated posts
-	paginatedPosts, err := h.store.(interface {
-		GetPostsPaginated(query models.PostQuery) (*models.PaginatedPosts, error)
-	}).GetPostsPaginated(query)
-
+	paginatedPosts, err := h.store.GetPostsPaginated(query)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(paginatedPosts)
+	if err := json.NewEncoder(w).Encode(paginatedPosts); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // Update GetAllPosts to use pagination (backward compatibility)
