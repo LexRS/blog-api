@@ -83,19 +83,19 @@ func (h *PostHandler) GetAllPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Old behavior: get all posts (limit to 100 for safety)
-	posts, err := h.store.GetAll()
+	paginatedPosts, err := h.store.GetAll()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Limit to 100 posts for backward compatibility
-	if len(posts) > 100 {
-		posts = posts[:100]
+	if len(paginatedPosts.Posts) > 100 {
+		paginatedPosts.Posts = paginatedPosts.Posts[:100]
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(posts)
+	json.NewEncoder(w).Encode(paginatedPosts)
 }
 
 func (h *PostHandler) GetPost(w http.ResponseWriter, r *http.Request) {

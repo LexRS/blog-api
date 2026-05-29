@@ -205,7 +205,7 @@ func (s *PostgresStore) createPostsTable() error {
 	return err
 }
 
-func (s *PostgresStore) GetAll() ([]models.Post, error) {
+func (s *PostgresStore) GetAll() (*models.PaginatedPosts, error) {
 	query := `
     SELECT id, title, content, author, created_at, updated_at 
     FROM posts 
@@ -235,7 +235,15 @@ func (s *PostgresStore) GetAll() ([]models.Post, error) {
 		posts = append(posts, post)
 	}
 
-	return posts, nil
+	//return posts, nil
+
+	return &models.PaginatedPosts{
+		Posts:      posts,
+		PrevCursor: "",
+		NextCursor: "",
+		HasMore:    false,
+		//Total: total
+	}, nil
 }
 
 func (s *PostgresStore) GetByID(id int) (*models.Post, error) {
