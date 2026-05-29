@@ -15,6 +15,20 @@ type PostgresStore struct {
 	db *sql.DB
 }
 
+func GetDB(connectionString string) (*sql.DB, error) {
+	db, err := sql.Open("postgres", connectionString)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := db.Ping(); err != nil {
+		return nil, err
+	}
+
+	log.Println("Connected to PostgreSQL database")
+	return db, nil
+}
+
 func (s *PostgresStore) GetPostsPaginated(query models.PostQuery) (*models.PaginatedPosts, error) {
 	whereClause, args := s.buildWhereClause(query)
 	orderClause := s.buildOrderClause(query)
@@ -169,18 +183,8 @@ func (s *PostgresStore) scanPaginatedPosts(
 	return posts, nextCursor, nil
 }
 
-func NewPostgresStore(connectionString string) (*PostgresStore, error) {
-	db, err := sql.Open("postgres", connectionString)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
-
-	log.Println("Connected to PostgreSQL database")
-	return &PostgresStore{db: db}, nil
+func NewPostgresStore(db *sql.DB) *PostgresStore {
+	return &PostgresStore{db: db}
 }
 
 func (s *PostgresStore) Init() error {
