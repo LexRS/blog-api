@@ -38,7 +38,7 @@ A production-ready RESTful blog API built with Go, featuring JWT authentication,
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/blog-api.git
+git clone https://github.com/LexRS/blog-api.git
 cd blog-api
 
 # Install dependencies
