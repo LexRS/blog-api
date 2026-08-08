@@ -27,11 +27,22 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Initialize PostgreSQL store
-	store, err := storage.NewPostgresStore(cfg.GetDBConnectionString())
+	db, err := storage.GetDB(cfg.GetDBConnectionString())
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	// Initialize PostgreSQL store
+	store := storage.NewPostgresStore(db)
+	userStore := storage.NewPostgresUserStore(db)
+
+	// Initialize auth handler
+    jwtSecret := os.Getenv("JWT_SECRET")
+    if jwtSecret == "" {
+        jwtSecret = "your-secret-key-change-in-production"
+    }
+    authHandler := handlers.NewAuthHandler(userStore, jwtSecret)
+
+	
 	defer store.Close()
 
 	// Initialize database (create tables)
@@ -50,13 +61,20 @@ func main() {
 	// API routes
 	api := r.PathPrefix("/api/v1").Subrouter()
 
+	api.HandleFunc("/register", authHandler.Register).Methods("POST")
+    api.HandleFunc("/login", authHandler.Login).Methods("POST")
+    
+    // Protected routes (auth required)
+    protected := api.PathPrefix("/").Subrouter()
+    protected.Use(middleware.AuthMiddleware([]byte(jwtSecret)))
+
 	// Posts endpoints
-	api.HandleFunc("/posts", postHandler.GetAllPosts).Methods("GET")
-    api.HandleFunc("/posts/paginated", postHandler.GetPostsPaginated).Methods("GET")
-	api.HandleFunc("/posts", postHandler.CreatePost).Methods("POST")
-	api.HandleFunc("/posts/{id}", postHandler.GetPost).Methods("GET")
-	api.HandleFunc("/posts/{id}", postHandler.UpdatePost).Methods("PUT")
-	api.HandleFunc("/posts/{id}", postHandler.DeletePost).Methods("DELETE")
+	protected.HandleFunc("/posts", postHandler.GetAllPosts).Methods("GET")
+    protected.HandleFunc("/posts/paginated", postHandler.GetPostsPaginated).Methods("GET")
+	protected.HandleFunc("/posts", postHandler.CreatePost).Methods("POST")
+	protected.HandleFunc("/posts/{id}", postHandler.GetPost).Methods("GET")
+	protected.HandleFunc("/posts/{id}", postHandler.UpdatePost).Methods("PUT")
+	protected.HandleFunc("/posts/{id}", postHandler.DeletePost).Methods("DELETE")
 
 	// Health check with DB connectivity test
 	api.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
